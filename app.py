@@ -57,6 +57,28 @@ def get_invoice(invoice_id):
     else:
         return jsonify({"error": "Invoice not found"}), 404
 
+@app.route('/invoices/by_number/<invoice_number>', methods=['GET'])
+def get_invoice_by_number(invoice_number):
+    session = Session()
+    invoice = session.query(Invoice).filter(Invoice.invoice_number == invoice_number).first()
+    session.close()
+    if invoice:
+        invoice_data = {
+            "id": invoice.id,
+            "invoice_type": invoice.invoice_type,
+            "client": invoice.client,
+            "invoice_number": invoice.invoice_number,
+            "invoice_date": invoice.invoice_date,
+            "due_date": invoice.due_date,
+            "total_amount": invoice.total_amount,
+            "vat_number": invoice.vat_number,
+            "products": invoice.products
+        }
+        return jsonify(invoice_data)
+    else:
+        return jsonify({"error": "Invoice not found"}), 404
+
+
 # Optionally, you can add a POST endpoint to upload and store a new invoice.
 # For now, we'll keep it simple.
 
