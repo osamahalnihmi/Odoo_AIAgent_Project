@@ -20,6 +20,22 @@ def list_invoices():
         return response.json()
     else:
         return None
+        
+def list_invoices_by_client(client_name):
+    url = f"http://127.0.0.1:5000/invoices/client/{client_name}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None
+
+def list_invoices_by_due_date(due_date):
+    url = f"http://127.0.0.1:5000/invoices/due_date/{due_date}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None
 
 def get_invoice_by_number(invoice_number):
     url = f"http://127.0.0.1:5000/invoices/by_number/{invoice_number}"
@@ -33,26 +49,29 @@ def process_query(query):
     query_lower = query.lower()
     doc = nlp(query_lower)
     invoice_num_str = None
-    due_date = None
+    client_name = None
 
-    # Look for numeric tokens (could be invoice id/number or a date part)
+    # Look for a numeric token for invoice id/number
     for token in doc:
         if token.like_num:
-            # If the token has 2 digits, it might be a date component, but we'll check later.
-            # Otherwise, assume it's the invoice number if it's longer.
-            if len(token.text) > 3:
-                invoice_num_str = token.text
-                break
+            invoice_num_str = token.text
+            break
 
-    # Check for date pattern in the query (simple pattern for MM/DD/YYYY)
+    # Check if the query contains "for <client>" using regex
+    client_match = re.search(r'for ([\w\s]+)', query_lower)
+    if client_match:
+        client_name = client_match.group(1).strip()
+
+    # Check if the query contains a date in MM/DD/YYYY format
     date_matches = re.findall(r'\d{2}/\d{2}/\d{4}', query_lower)
-    if date_matches:
-        due_date = date_matches[0]  # take the first match
-
+    
     if "list" in query_lower and "invoice" in query_lower:
-        # If the query mentions "due" and we found a date, use filtering
-        if "due" in query_lower and due_date:
-            return {"action": "list_by_due_date", "due_date": due_date}
+        # If a client name is specified, filter by client
+        if client_name:
+            return {"action": "list_by_client", "client_name": client_name}
+        # If the query mentions "due" and we have a date, use that endpoint
+        elif "due" in query_lower and date_matches:
+            return {"action": "list_by_due_date", "due_date": date_matches[0]}
         else:
             return {"action": "list"}
     elif ("get" in query_lower or "show" in query_lower) and "invoice" in query_lower and invoice_num_str:
@@ -64,21 +83,13 @@ def process_query(query):
     else:
         return {"action": "unknown"}
 
-def list_invoices_by_due_date(due_date):
-    url = f"http://127.0.0.1:5000/invoices/due_date/{due_date}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return None
-
-
 def main():
     print("Welcome to the Invoice AI Agent!")
     print("You can ask things like:")
     print("  - 'List invoices'")
     print("  - 'Get invoice 1'")
     print("  - 'Show me invoice 7003012'")
+    print("  - 'List invoices for Meesan Clinic'")
     print("  - 'List invoices due on 02/19/2025'")
     print("Type 'exit' to quit.")
     
@@ -105,6 +116,14 @@ def main():
                     print(f"  ID: {inv['id']} - Invoice Number: {inv['invoice_number']} - Client: {inv['client']}")
             else:
                 print(f"No invoices found with due date {result['due_date']}.")
+        elif result["action"] == "list_by_client":
+            invoices = list_invoices_by_client(result["client_name"])
+            if invoices:
+                print(f"Invoices for {result['client_name']}:")
+                for inv in invoices:
+                    print(f"  ID: {inv['id']} - Invoice Number: {inv['invoice_number']} - Client: {inv['client']}")
+            else:
+                print(f"No invoices found for client {result['client_name']}.")
         elif result["action"] == "get":
             invoice_data = get_invoice(result["invoice_id"])
             if invoice_data:
@@ -122,7 +141,7 @@ def main():
             else:
                 print("Invoice not found!")
         else:
-            print("I'm sorry, I didn't understand that command. Try a command like 'list invoices', 'get invoice <id>', or 'list invoices due on <MM/DD/YYYY>'.")
+            print("I'm sorry, I didn't understand that command. Try a command like 'list invoices', 'get invoice <id>', 'list invoices for <client>', or 'list invoices due on <MM/DD/YYYY>'.")
             
 if __name__ == "__main__":
     main()
