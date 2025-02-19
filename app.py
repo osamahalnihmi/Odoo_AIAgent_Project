@@ -78,7 +78,7 @@ def get_invoice_by_number(invoice_number):
     else:
         return jsonify({"error": "Invoice not found"}), 404
 
-@app.route('/invoices/due_date/<due_date>', methods=['GET'])
+@app.route('/invoices/due_date/<path:due_date>', methods=['GET'])
 def get_invoices_by_due_date(due_date):
     """
     Retrieve all invoices with a specific due date.
@@ -104,6 +104,7 @@ def get_invoices_by_due_date(due_date):
         return jsonify(invoice_list)
     else:
         return jsonify({"error": "No invoices found for due date " + due_date}), 404
+
 
 
 # Optionally, you can add a POST endpoint to upload and store a new invoice.
