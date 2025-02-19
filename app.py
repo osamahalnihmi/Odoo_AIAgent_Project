@@ -2,6 +2,8 @@ from flask import Flask, jsonify, request
 from database_setup import Invoice, Session
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+import os
+
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -9,6 +11,54 @@ app = Flask(__name__)
 # Configure the database session (using SQLite from our database_setup.py)
 engine = create_engine('sqlite:///invoices.db')
 Session = sessionmaker(bind=engine)
+
+
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+@app.route('/upload_invoice', methods=['POST'])
+def upload_invoice():
+    """
+    Endpoint to upload a new invoice PDF.
+    The file is saved, processed, and the parsed data is stored in the database.
+    """
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in the request"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No file selected for uploading"}), 400
+
+    # Save the uploaded file
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(file_path)
+
+    # Process the file using your existing invoice processing script
+    from scripts.invoice_processing import parse_invoice_data
+    from database_setup import Invoice, Session
+
+    data = parse_invoice_data(file_path)
+    if not data:
+        return jsonify({"error": "Failed to extract invoice data from file"}), 500
+
+    session = Session()
+    invoice = Invoice(
+        invoice_type = data.get("invoice_type"),
+        client = data.get("client"),
+        invoice_number = data.get("invoice_number"),
+        invoice_date = data.get("invoice_date"),
+        due_date = data.get("due_date"),
+        total_amount = data.get("total_amount"),
+        vat_number = data.get("vat_number"),
+        products = str(data.get("products"))
+    )
+    session.add(invoice)
+    session.commit()
+    session.close()
+
+    return jsonify({"message": "Invoice uploaded and stored successfully!", "invoice_id": invoice.id}), 201
 
 @app.route('/invoices', methods=['GET'])
 def get_invoices():
