@@ -105,6 +105,33 @@ def get_invoices_by_due_date(due_date):
     else:
         return jsonify({"error": "No invoices found for due date " + due_date}), 404
 
+@app.route('/invoices/client/<client_name>', methods=['GET'])
+def get_invoices_by_client(client_name):
+    """
+    Retrieve all invoices for a given client (case-insensitive search).
+    """
+    session = Session()
+    invoices = session.query(Invoice).filter(Invoice.client.ilike(f"%{client_name}%")).all()
+    session.close()
+    
+    if invoices:
+        invoice_list = []
+        for inv in invoices:
+            invoice_list.append({
+                "id": inv.id,
+                "invoice_type": inv.invoice_type,
+                "client": inv.client,
+                "invoice_number": inv.invoice_number,
+                "invoice_date": inv.invoice_date,
+                "due_date": inv.due_date,
+                "total_amount": inv.total_amount,
+                "vat_number": inv.vat_number,
+                "products": inv.products
+            })
+        return jsonify(invoice_list)
+    else:
+        return jsonify({"error": "No invoices found for client " + client_name}), 404
+
 
 
 # Optionally, you can add a POST endpoint to upload and store a new invoice.
