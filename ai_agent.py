@@ -51,37 +51,70 @@ def process_query(query):
     invoice_num_str = None
     client_name = None
 
-    # Look for a numeric token for invoice id/number
+    # Look for a numeric token (for invoice id/number)
     for token in doc:
         if token.like_num:
             invoice_num_str = token.text
             break
 
-    # Check if the query contains "for <client>" using regex
+    # Check if the query contains "for <client>"
     client_match = re.search(r'for ([\w\s]+)', query_lower)
     if client_match:
         client_name = client_match.group(1).strip()
 
-    # Check if the query contains a date in MM/DD/YYYY format
+    # Check for date in MM/DD/YYYY format
     date_matches = re.findall(r'\d{2}/\d{2}/\d{4}', query_lower)
-    
+
+    # Process delete command
+    if "delete" in query_lower and "invoice" in query_lower and invoice_num_str:
+        # Assume invoice id is short (less than or equal to 3 digits)
+        if len(invoice_num_str) <= 3:
+            return {"action": "delete", "invoice_id": int(invoice_num_str)}
+        else:
+            # Alternatively, if using invoice_number, you can decide how to handle that.
+            return {"action": "delete_by_number", "invoice_number": invoice_num_str}
+
+    # Process update command (for simplicity, assume update commands provide JSON-like key-value pairs)
+    if "update" in query_lower and "invoice" in query_lower and invoice_num_str:
+        if len(invoice_num_str) <= 3:
+            return {"action": "update", "invoice_id": int(invoice_num_str)}
+        else:
+            return {"action": "update_by_number", "invoice_number": invoice_num_str}
+
+    # Existing logic for list and get commands
     if "list" in query_lower and "invoice" in query_lower:
-        # If a client name is specified, filter by client
         if client_name:
             return {"action": "list_by_client", "client_name": client_name}
-        # If the query mentions "due" and we have a date, use that endpoint
         elif "due" in query_lower and date_matches:
             return {"action": "list_by_due_date", "due_date": date_matches[0]}
         else:
             return {"action": "list"}
     elif ("get" in query_lower or "show" in query_lower) and "invoice" in query_lower and invoice_num_str:
-        # If the number has more than 3 digits, assume it's the invoice_number
         if len(invoice_num_str) > 3:
             return {"action": "get_by_number", "invoice_number": invoice_num_str}
         else:
             return {"action": "get", "invoice_id": int(invoice_num_str)}
     else:
         return {"action": "unknown"}
+
+
+
+def update_invoice_data(invoice_id, data):
+    """
+    Sends a PUT request to update an invoice with the given data.
+    """
+    url = f"http://127.0.0.1:5000/invoices/{invoice_id}"
+    response = requests.put(url, json=data)
+    return response.json()
+
+
+def delete_invoice(invoice_id):
+    """
+    Sends a DELETE request to remove an invoice.
+    """
+    url = f"http://127.0.0.1:5000/invoices/{invoice_id}"
+    response = requests.delete(url)
+    return response.json()
 
 def main():
     print("Welcome to the Invoice AI Agent!")
@@ -91,6 +124,8 @@ def main():
     print("  - 'Show me invoice 7003012'")
     print("  - 'List invoices for Meesan Clinic'")
     print("  - 'List invoices due on 02/19/2025'")
+    print("  - 'Delete invoice 1'")
+    print("  - 'Update invoice 1'")
     print("Type 'exit' to quit.")
     
     while True:
@@ -140,8 +175,28 @@ def main():
                     print(f"  {key}: {value}")
             else:
                 print("Invoice not found!")
+        elif result["action"] == "delete":
+            response = delete_invoice(result["invoice_id"])
+            print(response)
+        elif result["action"] == "delete_by_number":
+            # Optionally, add similar logic for deletion by invoice number
+            print("Deletion by invoice number not implemented yet.")
+        elif result["action"] == "update":
+            print("Enter JSON data for update (e.g., {\"client\": \"Updated Name\"}):")
+            update_data_str = input(">> ")
+            try:
+                import json
+                update_data = json.loads(update_data_str)
+                response = update_invoice_data(result["invoice_id"], update_data)
+                print("Updated Invoice Data:")
+                for key, value in response.items():
+                    print(f"  {key}: {value}")
+            except Exception as e:
+                print("Error parsing update data:", e)
+        elif result["action"] == "update_by_number":
+            print("Update by invoice number not implemented yet.")
         else:
-            print("I'm sorry, I didn't understand that command. Try a command like 'list invoices', 'get invoice <id>', 'list invoices for <client>', or 'list invoices due on <MM/DD/YYYY>'.")
+            print("I'm sorry, I didn't understand that command. Try a valid command.")
             
 if __name__ == "__main__":
     main()
